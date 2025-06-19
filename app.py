@@ -8,6 +8,10 @@ from sentence_transformers import SentenceTransformer, util
 from collections import Counter
 import base64
 import warnings
+import re
+
+def clean_text(text):
+    return re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
 warnings.filterwarnings("ignore")
 
 model = SentenceTransformer('all-MiniLM-L6-v2')  
@@ -40,18 +44,30 @@ def keyword_match_score(resume_text, required_skills):
     match_count = sum(1 for skill in required_skills if skill in resume_text)
     return match_count / len(required_skills) * 100 if required_skills else 0
 
-def chunked_similarity(jd_text, resume_text):
+from keybert import KeyBERT
+kw_model = KeyBERT()
+
+def extract_keywords_from_jd(jd_text, top_n=15):
+    keywords = kw_model.extract_keywords(jd_text, top_n=top_n, stop_words='english')
+    return [kw[0].lower() for kw in keywords]  # just the words
+
+def compare_to_jd(jd_text, resume_text):
+    required_skills = extract_keywords_from_jd(jd_text)
+
+    resume_text_lower = resume_text.lower()
+
+    # Semantic similarity
     jd_embedding = model.encode(jd_text, convert_to_tensor=True)
-    chunks = resume_text.split('\n\n')  # paragraph-based chunks
-    best_sim = 0
+    resume_embedding = model.encode(resume_text, convert_to_tensor=True)
+    semantic_score = util.pytorch_cos_sim(jd_embedding, resume_embedding).item()
 
-    for chunk in chunks:
-        if chunk.strip():
-            chunk_emb = model.encode(chunk, convert_to_tensor=True)
-            sim = util.pytorch_cos_sim(jd_embedding, chunk_emb).item()
-            best_sim = max(best_sim, sim)
+    # Keyword match
+    matched_keywords = sum(1 for skill in required_skills if skill in resume_text_lower)
+    keyword_score = matched_keywords / len(required_skills) if required_skills else 0
 
-    return round(best_sim * 100, 2)
+    # Final score
+    final_score = 60 * semantic_score + 40 * keyword_score
+    return round(final_score, 2)
     
 def process_resumes(uploaded_files, jd_text):
     results = []
