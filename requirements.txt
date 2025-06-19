@@ -1,18 +1,11 @@
-python_version == 3.10
-
-# Streamlit and core
 streamlit
 pandas
 pdfplumber
 python-docx
-openpyxl
-
-# NLP and resume ranking
 sentence-transformers
+openpyxl
+Pillow
 torch==2.2.2
 transformers
 scikit-learn
 keybert
-
-# Image handling
-Pillow
