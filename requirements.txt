@@ -8,3 +8,4 @@ Pillow
 torch
 transformers
 scikit-learn
+keybert
