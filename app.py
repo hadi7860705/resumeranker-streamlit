@@ -44,9 +44,19 @@ def compare_to_jd(jd_text, resume_text):
     jd_embedding = model.encode(jd_text, convert_to_tensor=True)
     resume_embedding = model.encode(resume_text, convert_to_tensor=True)
     similarity = util.pytorch_cos_sim(jd_embedding, resume_embedding).item()
-    return round(similarity * 100, 2)
 
+    # Apply custom transformation to improve differentiation
+    if similarity >= 0.7:
+        score = round(similarity * 100, 2)
+    elif similarity >= 0.5:
+        score = round((similarity - 0.2) * 100, 2)
+    elif similarity >= 0.3:
+        score = round((similarity - 0.1) * 90, 2)
+    else:
+        score = round(similarity * 70, 2)
 
+    return score
+    
 def process_resumes(uploaded_files, jd_text):
     results = []
     for file in uploaded_files:
