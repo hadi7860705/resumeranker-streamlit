@@ -1,5 +1,6 @@
 streamlit
+pandas
 pdfplumber
 python-docx
-pandas
 sentence-transformers
+openpyxl
