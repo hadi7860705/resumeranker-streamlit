@@ -41,13 +41,11 @@ def keyword_match_score(resume_text, required_skills):
     return match_count / len(required_skills) * 100 if required_skills else 0
 
 def compare_to_jd(jd_text, resume_text):
-    required_skills = extract_required_skills(jd_text)
     jd_embedding = model.encode(jd_text, convert_to_tensor=True)
     resume_embedding = model.encode(resume_text, convert_to_tensor=True)
     similarity = util.pytorch_cos_sim(jd_embedding, resume_embedding).item()
-    keyword_score = keyword_match_score(resume_text, required_skills)
-    final_score = round((similarity * 100 * 0.5) + (keyword_score * 0.5), 2)
-    return final_score
+    return round(similarity * 100, 2)
+
 
 def process_resumes(uploaded_files, jd_text):
     results = []
