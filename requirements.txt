@@ -4,3 +4,4 @@ pdfplumber
 python-docx
 sentence-transformers
 openpyxl
+Pillow
