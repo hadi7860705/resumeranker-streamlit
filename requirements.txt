@@ -1,3 +1,4 @@
+python_version == 3.10
 streamlit
 pandas
 pdfplumber
@@ -5,7 +6,7 @@ python-docx
 sentence-transformers
 openpyxl
 Pillow
-torch
+torch==2.2.2
 transformers
 scikit-learn
 keybert
