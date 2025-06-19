@@ -5,3 +5,6 @@ python-docx
 sentence-transformers
 openpyxl
 Pillow
+torch
+transformers
+scikit-learn
