@@ -46,7 +46,8 @@ def compare_to_jd(jd_text, resume_text):
     resume_embedding = model.encode(resume_text, convert_to_tensor=True)
     similarity = util.pytorch_cos_sim(jd_embedding, resume_embedding).item()
     keyword_score = keyword_match_score(resume_text, required_skills)
-    return round((similarity * 100 * 0.7) + (keyword_score * 0.3), 2)
+    final_score = round((similarity * 100 * 0.5) + (keyword_score * 0.5), 2)
+    return final_score
 
 def process_resumes(uploaded_files, jd_text):
     results = []
