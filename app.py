@@ -10,7 +10,7 @@ import base64
 import warnings
 warnings.filterwarnings("ignore")
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+model = SentenceTransformer('all-mpnet-base-v2')  
 
 # ------------------- Utility Functions -------------------
 def extract_text_from_pdf(file_path):
