@@ -67,32 +67,30 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
     return [(kw.lower(), weight) for kw, weight in keywords]
 
 
-def compare_to_jd(jd_text: str, resume_text: str) -> float:
-    # ---------- 1) Semantic similarity ----------
-    jd_emb  = model.encode(jd_text,    convert_to_tensor=True)
+def compare_to_jd(jd_text, resume_text):
+    keywords = extract_keywords_from_jd(jd_text, top_n=30)
+    resume_lower = resume_text.lower()
+
+    jd_emb = model.encode(jd_text, convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
+
+    # --- Semantic similarity (cosine) ---
     raw_sim = util.pytorch_cos_sim(jd_emb, res_emb).item()
-
-    # Normalize: map 0.30-0.70 → 0-1
     sem_score = (raw_sim - 0.15) / 0.55
-    sem_score = max(0.0, min(sem_score, 1.0))
+    sem_score = max(0, min(sem_score, 1))
 
-    # ---------- 2) Weighted keyword coverage ----
-    keywords      = extract_keywords_from_jd(jd_text, top_n=30)
-    resume_lower  = resume_text.lower()
+    # --- Keyword weighted score ---
+    matched_wt = sum(weight for kw, weight in keywords if kw in resume_lower)
+    total_wt = sum(weight for _, weight in keywords)
+    kw_score = matched_wt / total_wt if total_wt > 0 else 0.0
 
-    matched_wt    = sum(w for kw, w in keywords if kw in resume_lower)
-    total_wt      = sum(w for _, w in keywords)
-    kw_score      = matched_wt / total_wt if total_wt else 0.0
+    # --- Non-linear penalty to punish poor match more ---
+    penalty = 25 * ((1 - kw_score) ** 2)
 
-    # ---------- 3) Penalty for missing keywords --
-    missing_frac  = 1.0 - kw_score          # 0 → all hit, 1 → none hit
-    penalty       = 20 * missing_frac     # up to −25 points
-
-    # ---------- 4) Final blended score ----------
-    final = 65.0 * sem_score + 35.0 * kw_score - penalty
-    return round(max(0.0, min(final, 100.0)), 2)  
-
+    # --- Final blended score ---
+    final = (0.7 * sem_score + 0.3 * kw_score) * 100 - penalty
+    final = max(0, min(final, 100))
+    return round(final, 2)
 
 def process_resumes(uploaded_files, jd_text):
     results = []
