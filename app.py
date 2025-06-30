@@ -67,32 +67,39 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
     return [(kw.lower(), weight) for kw, weight in keywords]
 
 
-
 def compare_to_jd(jd_text, resume_text):
     keywords = extract_keywords_from_jd(jd_text, top_n=30)
     resume_lower = resume_text.lower()
 
-    jd_emb = model.encode(jd_text, convert_to_tensor=True)
+    # --- semantic similarity ---
+    jd_emb  = model.encode(jd_text,    convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
+    raw_cos = util.pytorch_cos_sim(jd_emb, res_emb).item()
 
-    # Semantic similarity (0.2 to 0.7 mapped to 0–1)
-    raw_sim = util.pytorch_cos_sim(jd_emb, res_emb).item()
-    sem_score = (raw_sim - 0.2) / 0.5
+    # map 0.20‒0.70 → 0‒1
+    sem_score = (raw_cos - 0.20) / 0.50
     sem_score = max(0, min(sem_score, 1))
 
-    # Keyword match
-    matched_wt = sum(weight for kw, weight in keywords if kw in resume_lower)
-    total_wt = sum(weight for _, weight in keywords)
-    kw_score = matched_wt / total_wt if total_wt > 0 else 0.0
+    # --- weighted keyword match ---
+    matched_wt = sum(w for kw, w in keywords if kw in resume_lower)
+    total_wt   = sum(w for _, w in keywords)
+    kw_score   = matched_wt / total_wt if total_wt else 0.0   # 0‒1
 
-    # Final score
-    final = (0.75 * sem_score + 0.25 * kw_score) * 100
+    # --- stepped penalty based on keyword coverage ---
+    if kw_score >= 0.60:
+        penalty = 0                     # excellent coverage
+    elif kw_score >= 0.40:
+        penalty = 10 * (0.60 - kw_score)    # up to −2 points
+    elif kw_score >= 0.20:
+        penalty = 25 * (0.40 - kw_score)    # up to −5 points
+    else:
+        penalty = 40 * (0.20 - kw_score)    # up to −8 points
 
-    # Penalize if keyword match is low
-    if kw_score < 0.4:
-        final -= 10 * (0.4 - kw_score) ** 2
+    # --- final blended score ---
+    final = (65 * sem_score + 35 * kw_score) - penalty
+    final = max(0, min(final, 100))
+    return round(final, 2)
 
-    return round(max(0, min(final, 100)), 2)
     
 def process_resumes(uploaded_files, jd_text):
     results = []
