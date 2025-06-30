@@ -75,23 +75,23 @@ def compare_to_jd(jd_text, resume_text):
     jd_emb = model.encode(jd_text, convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
     raw_cos = util.pytorch_cos_sim(jd_emb, res_emb).item()
-    sem = max(0, min((raw_cos - 0.25) / 0.5, 1))  # scaled to [0,1]
+    sem = max(0, min((raw_cos - 0.25) / 0.5, 1))  # normalized to [0,1]
+
+    # --- Boost excellent semantic alignment (>0.8) ---
+    if sem > 0.8:
+        sem = sem ** 1.2 + 0.05  # gentle nonlinear boost
+    semantic_score = 100 * (sem ** 1.4)
 
     # --- Keyword match ---
     hit_w = sum(w for kw, w in keywords if kw in res_low)
     total_w = sum(w for _, w in keywords)
     kw = hit_w / total_w if total_w > 0 else 0
 
-    # --- Weighted scoring logic ---
-    # Reward for semantic match grows with power (nonlinear boost)
-    semantic_score = 100 * (sem ** 1.5)
+    # --- Keyword penalty ---
+    keyword_penalty = 100 * ((1 - kw) ** 2.3)
 
-    # Penalty for keyword deficiency (nonlinear drop)
-    keyword_penalty = 100 * ((1 - kw) ** 2.5)
-
-    # Final score formula
+    # --- Final score ---
     final_score = semantic_score - 0.8 * keyword_penalty
-
     return round(max(0, min(final_score, 100)), 2)
     
 def process_resumes(uploaded_files, jd_text):
