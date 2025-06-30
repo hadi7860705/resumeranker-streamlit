@@ -79,7 +79,7 @@ def compare_to_jd(jd_text, resume_text):
 
     # --- Boost excellent semantic alignment ---
     if sem > 0.8:
-        sem = sem ** 1.45 + 0.15  # slightly more boost
+        sem = sem ** 1.35 + 0.15  # slightly more boost
     semantic_score = 100 * (sem ** 1.35)  # gentler rise for 0.6–0.8
 
     # --- Keyword match ---
