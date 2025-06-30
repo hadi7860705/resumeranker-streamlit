@@ -69,31 +69,30 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
 
 def compare_to_jd(jd_text, resume_text):
     keywords = extract_keywords_from_jd(jd_text, top_n=30)
-    res_low  = resume_text.lower()
+    res_low = resume_text.lower()
 
-    # --- semantic similarity ---
-    jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
+    # --- Semantic similarity ---
+    jd_emb = model.encode(jd_text, convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
     raw_cos = util.pytorch_cos_sim(jd_emb, res_emb).item()
-    sem = (raw_cos - 0.20) / 0.50          # 0.20–0.70 → 0–1
-    sem = max(0, min(sem, 1))
+    sem = max(0, min((raw_cos - 0.25) / 0.5, 1))  # scaled to [0,1]
 
-    # --- weighted keyword coverage ---
-    hit_w  = sum(w for kw, w in keywords if kw in res_low)
+    # --- Keyword match ---
+    hit_w = sum(w for kw, w in keywords if kw in res_low)
     total_w = sum(w for _, w in keywords)
-    kw     = hit_w / total_w if total_w else 0.0
+    kw = hit_w / total_w if total_w > 0 else 0
 
-    # --- strong stepped penalty ---
-    if kw >= 0.60:          # good hit-rate
-        penalty = 0
-    elif kw >= 0.40:        # mediocre
-        penalty = 10 + 20 * (0.60 - kw)    # up to −14 pts
-    else:                   # poor (<40 %)
-        penalty = 20 + 30 * (0.40 - kw)    # up to −32 pts
+    # --- Weighted scoring logic ---
+    # Reward for semantic match grows with power (nonlinear boost)
+    semantic_score = 100 * (sem ** 1.5)
 
-    # --- final score ---
-    score = 70 * sem + 30 * kw - penalty
-    return round(max(0, min(score, 100)), 2)
+    # Penalty for keyword deficiency (nonlinear drop)
+    keyword_penalty = 100 * ((1 - kw) ** 2.5)
+
+    # Final score formula
+    final_score = semantic_score - 0.8 * keyword_penalty
+
+    return round(max(0, min(final_score, 100)), 2)
     
 def process_resumes(uploaded_files, jd_text):
     results = []
