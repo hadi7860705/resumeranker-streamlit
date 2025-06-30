@@ -17,7 +17,7 @@ def clean_text(text):
 warnings.filterwarnings("ignore")
 
 device = torch.device("cpu")  # Fix for Streamlit + PyTorch meta tensor issue
-model = SentenceTransformer('all-MiniLM-L6-v2')
+model = SentenceTransformer('all-mpnet-base-v2')
 model = model.to(device)
 
 # ------------------- Utility Functions -------------------
@@ -51,26 +51,31 @@ def keyword_match_score(resume_text, required_skills):
 from keybert import KeyBERT
 kw_model = KeyBERT()
 
-def extract_keywords_from_jd(jd_text, top_n=15):
-    keywords = kw_model.extract_keywords(jd_text, top_n=top_n, stop_words='english')
-    return [kw[0].lower() for kw in keywords]  # just the words
+def extract_keywords_from_jd(jd_text, top_n=30):
+    # Returns list of tuples: (keyword, weight)
+    return kw_model.extract_keywords(jd_text, top_n=top_n, stop_words='english')
 
 def compare_to_jd(jd_text, resume_text):
-    required_skills = extract_keywords_from_jd(jd_text)
+    keywords = extract_keywords_from_jd(jd_text)
 
     resume_text_lower = resume_text.lower()
 
     # Semantic similarity
     jd_embedding = model.encode(jd_text, convert_to_tensor=True)
     resume_embedding = model.encode(resume_text, convert_to_tensor=True)
-    semantic_score = util.pytorch_cos_sim(jd_embedding, resume_embedding).item()
+    semantic_raw = util.pytorch_cos_sim(jd_embedding, resume_embedding).item()
 
-    # Keyword match
-    matched_keywords = sum(1 for skill in required_skills if skill in resume_text_lower)
-    keyword_score = matched_keywords / len(required_skills) if required_skills else 0
+    # Normalize semantic score (map 0.3–0.7 to 0–1)
+    semantic_score = (semantic_raw - 0.3) / (0.7 - 0.3)
+    semantic_score = max(0, min(semantic_score, 1))  # clip to [0,1]
 
-    # Final score
-    final_score = 60 * semantic_score + 40 * keyword_score
+    # Weighted keyword match
+    matched_weight = sum(weight for kw, weight in keywords if kw in resume_text_lower)
+    total_weight = sum(weight for _, weight in keywords)
+    keyword_score = matched_weight / total_weight if total_weight > 0 else 0
+
+    # Final score (you can tune weights here)
+    final_score = 70 * semantic_score + 30 * keyword_score
     return round(final_score, 2)
     
 def process_resumes(uploaded_files, jd_text):
