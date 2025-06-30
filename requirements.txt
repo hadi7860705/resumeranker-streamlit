@@ -5,7 +5,7 @@ python-docx
 sentence-transformers
 openpyxl
 Pillow
-torch
+torch==2.7.1
 transformers
 scikit-learn
 keybert
