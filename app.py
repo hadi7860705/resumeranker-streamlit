@@ -18,7 +18,7 @@ def clean_text(text):
 warnings.filterwarnings("ignore")
 
 device = torch.device("cpu")  # Fix for Streamlit + PyTorch meta tensor issue
-model = SentenceTransformer('all-mpnet-base-v2', , device="cpu")
+model = SentenceTransformer('all-mpnet-base-v2', device="cpu")
 model = model.to(device)
 
 # ------------------- Utility Functions -------------------
