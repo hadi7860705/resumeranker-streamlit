@@ -10,11 +10,15 @@ import base64
 import warnings
 import re
 
+import torch
 def clean_text(text):
     return re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
+
 warnings.filterwarnings("ignore")
 
-model = SentenceTransformer('all-MiniLM-L6-v2')  
+device = torch.device("cpu")  # Fix for Streamlit + PyTorch meta tensor issue
+model = SentenceTransformer('all-MiniLM-L6-v2')
+model = model.to(device)
 
 # ------------------- Utility Functions -------------------
 def extract_text_from_pdf(file_path):
