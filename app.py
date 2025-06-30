@@ -90,7 +90,7 @@ def compare_to_jd(jd_text: str, resume_text: str) -> float:
     penalty       = 12.5 * missing_frac     # up to −25 points
 
     # ---------- 4) Final blended score ----------
-    final = 65.0 * sem_score + 35.0 * kw_score - penalty
+    final = 55.0 * sem_score + 45.0 * kw_score - penalty
     return round(max(0.0, min(final, 100.0)), 2)  
 
 
