@@ -11,6 +11,7 @@ import warnings
 import re
 
 import torch
+
 def clean_text(text):
     return re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
 
@@ -47,9 +48,11 @@ def keyword_match_score(resume_text, required_skills):
     resume_text = resume_text.lower()
     match_count = sum(1 for skill in required_skills if skill in resume_text)
     return match_count / len(required_skills) * 100 if required_skills else 0
-
+    
+from rapidfuzz import fuzz
 from keybert import KeyBERT
 kw_model = KeyBERT()
+TOP_N_KW = 50  
 
 def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
     """
@@ -67,32 +70,55 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
     return [(kw.lower(), weight) for kw, weight in keywords]
 
 
-def compare_to_jd(jd_text, resume_text):
-    keywords = extract_keywords_from_jd(jd_text, top_n=30)
-    res_low = resume_text.lower()
+# ---------------- Keyword helpers -----------------
+from rapidfuzz import fuzz
+from keybert import KeyBERT
 
-    # --- Semantic similarity ---
-    jd_emb = model.encode(jd_text, convert_to_tensor=True)
+kw_model = KeyBERT(model)          # reuse existing SentenceTransformer
+TOP_N_KW = 50                      # pull more keywords
+
+def extract_keywords_from_jd(jd_text: str, top_n: int = TOP_N_KW):
+    """
+    Returns list of tuples (keyword, weight) sorted by KeyBERT relevance.
+    """
+    return kw_model.extract_keywords(jd_text, top_n=top_n, stop_words="english")
+
+def keyword_coverage(resume_text: str, keywords):
+    """
+    Return ratio [0‒1] of JD keywords found in resume_text.
+    Uses exact OR fuzzy partial match (RapidFuzz ≥85).
+    Weights each keyword by KeyBERT weight.
+    """
+    text = resume_text.lower()
+    matched_weight = 0.0
+    total_weight   = 0.0
+    for kw, w in keywords:
+        total_weight += w
+        if kw in text or fuzz.partial_ratio(kw, text) >= 85:
+            matched_weight += w
+    return matched_weight / total_weight if total_weight else 0.0
+    
+# --------------- Scoring function -----------------
+def compare_to_jd(jd_text: str, resume_text: str) -> float:
+    # ----- semantic similarity -----
+    jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
     raw_cos = util.pytorch_cos_sim(jd_emb, res_emb).item()
-    sem = max(0, min((raw_cos - 0.25) / 0.5, 1))  # normalize to [0,1]
 
-    # --- Boost excellent semantic alignment ---
-    if sem > 0.8:
-        sem = sem ** 1.35 + 0.1  # slightly more boost
-    semantic_score = 100 * (sem ** 1.35)  # gentler rise for 0.6–0.8
+    # Normalise to [0,1] (shift & scale typical SBERT cosine range 0.25–0.75)
+    sem = max(0.0, min((raw_cos - 0.25) / 0.5, 1.0))
 
-    # --- Keyword match ---
-    hit_w = sum(w for kw, w in keywords if kw in res_low)
-    total_w = sum(w for _, w in keywords)
-    kw = hit_w / total_w if total_w > 0 else 0
+    # Gentle boost for VERY high semantic (>0.80) so the best still pop
+    if sem > 0.80:
+        sem = min(1.0, sem ** 1.25 + 0.05)
 
-    # --- Keyword penalty ---
-    keyword_penalty = 100 * ((1 - kw) ** 2.2)  # slight reduction in penalty
+    # ----- keyword coverage -----
+    jd_keywords = extract_keywords_from_jd(jd_text)
+    kw_ratio    = keyword_coverage(resume_text, jd_keywords)          # 0‒1
 
-    # --- Final score ---
-    final_score = semantic_score - 0.75 * keyword_penalty
-    return round(max(0, min(final_score, 100)), 2)
+    # ----- final blend (60 % semantic, 40 % keyword) -----
+    final = (0.60 * sem + 0.40 * kw_ratio) * 100                     # -> 0‒100
+    return round(final, 2)
     
 def process_resumes(uploaded_files, jd_text):
     results = []
