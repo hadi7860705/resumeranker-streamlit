@@ -9,3 +9,4 @@ torch==2.7.1
 transformers
 scikit-learn
 keybert
+rapidfuzz==3.6.2
