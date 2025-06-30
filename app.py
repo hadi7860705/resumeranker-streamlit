@@ -69,37 +69,31 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
 
 def compare_to_jd(jd_text, resume_text):
     keywords = extract_keywords_from_jd(jd_text, top_n=30)
-    resume_lower = resume_text.lower()
+    res_low  = resume_text.lower()
 
     # --- semantic similarity ---
-    jd_emb  = model.encode(jd_text,    convert_to_tensor=True)
+    jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
     raw_cos = util.pytorch_cos_sim(jd_emb, res_emb).item()
+    sem = (raw_cos - 0.20) / 0.50          # 0.20–0.70 → 0–1
+    sem = max(0, min(sem, 1))
 
-    # map 0.20‒0.70 → 0‒1
-    sem_score = (raw_cos - 0.20) / 0.50
-    sem_score = max(0, min(sem_score, 1))
+    # --- weighted keyword coverage ---
+    hit_w  = sum(w for kw, w in keywords if kw in res_low)
+    total_w = sum(w for _, w in keywords)
+    kw     = hit_w / total_w if total_w else 0.0
 
-    # --- weighted keyword match ---
-    matched_wt = sum(w for kw, w in keywords if kw in resume_lower)
-    total_wt   = sum(w for _, w in keywords)
-    kw_score   = matched_wt / total_wt if total_wt else 0.0   # 0‒1
+    # --- strong stepped penalty ---
+    if kw >= 0.60:          # good hit-rate
+        penalty = 0
+    elif kw >= 0.40:        # mediocre
+        penalty = 10 + 20 * (0.60 - kw)    # up to −14 pts
+    else:                   # poor (<40 %)
+        penalty = 20 + 30 * (0.40 - kw)    # up to −32 pts
 
-    # --- stepped penalty based on keyword coverage ---
-    if kw_score >= 0.60:
-        penalty = 0                     # excellent coverage
-    elif kw_score >= 0.40:
-        penalty = 10 * (0.60 - kw_score)    # up to −2 points
-    elif kw_score >= 0.20:
-        penalty = 25 * (0.40 - kw_score)    # up to −5 points
-    else:
-        penalty = 40 * (0.20 - kw_score)    # up to −8 points
-
-    # --- final blended score ---
-    final = (65 * sem_score + 35 * kw_score) - penalty
-    final = max(0, min(final, 100))
-    return round(final, 2)
-
+    # --- final score ---
+    score = 70 * sem + 30 * kw - penalty
+    return round(max(0, min(score, 100)), 2)
     
 def process_resumes(uploaded_files, jd_text):
     results = []
