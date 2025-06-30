@@ -74,7 +74,7 @@ def compare_to_jd(jd_text: str, resume_text: str) -> float:
     raw_sim = util.pytorch_cos_sim(jd_emb, res_emb).item()
 
     # Normalize: map 0.30-0.70 → 0-1
-    sem_score = (raw_sim - 0.20) / 0.50
+    sem_score = (raw_sim - 0.15) / 0.55
     sem_score = max(0.0, min(sem_score, 1.0))
 
     # ---------- 2) Weighted keyword coverage ----
@@ -87,10 +87,10 @@ def compare_to_jd(jd_text: str, resume_text: str) -> float:
 
     # ---------- 3) Penalty for missing keywords --
     missing_frac  = 1.0 - kw_score          # 0 → all hit, 1 → none hit
-    penalty       = 12.5 * missing_frac     # up to −25 points
+    penalty       = 20 * missing_frac     # up to −25 points
 
     # ---------- 4) Final blended score ----------
-    final = 55.0 * sem_score + 45.0 * kw_score - penalty
+    final = 65.0 * sem_score + 35.0 * kw_score - penalty
     return round(max(0.0, min(final, 100.0)), 2)  
 
 
