@@ -67,7 +67,7 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
     return [(kw.lower(), weight) for kw, weight in keywords]
 
 
-ef compare_to_jd(jd_text: str, resume_text: str) -> float:
+def compare_to_jd(jd_text: str, resume_text: str) -> float:
     # ---------- 1) Semantic similarity ----------
     jd_emb  = model.encode(jd_text,    convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
