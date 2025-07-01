@@ -146,16 +146,24 @@ st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 st.markdown(
     """
     <style>
-        /* Target ONLY Streamlit text-areas */
+        textarea {
+            resize: none !important;          /* Completely disable resize */
+            height: 250px !important;         /* Fixed height */
+            overflow-y: auto !important;      /* Enable vertical scroll */
+            box-sizing: border-box !important;
+        }
+
+        /* Optional: prevent accidental margin/padding changes */
         .stTextArea textarea {
-            resize: none !important;      /* 🔒 turn off the handle   */
-            height: 250px !important;     /* 📏 constant box height   */
-            overflow-y: auto !important;  /* 🖱 still scrolls inside  */
+            min-height: 250px !important;
+            max-height: 250px !important;
         }
     </style>
     """,
     unsafe_allow_html=True
 )
+
+
 
 # Display logo
 with open("avialdo.jpeg", "rb") as f:
