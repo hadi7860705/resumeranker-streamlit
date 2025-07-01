@@ -7,6 +7,7 @@ from docx import Document
 from sentence_transformers import SentenceTransformer, util
 from keybert import KeyBERT
 from rapidfuzz import fuzz
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode  
 
 warnings.filterwarnings("ignore")
 
@@ -140,7 +141,6 @@ if st.button("🚀 Rank Resumes"):
             df = process_resumes(uploaded_files, jd_text)
         st.success("✅ Ranking complete!")
 
-        # ---- build grid options ----
         gb = GridOptionsBuilder.from_dataframe(df)
         gb.configure_default_column(
             editable=False,
@@ -155,7 +155,6 @@ if st.button("🚀 Rank Resumes"):
         )
         gridOptions = gb.build()
 
-        # ---- calculate a reasonable height (40 px per row, min 200, max 600) ----
         n_rows   = max(len(df), 1)
         grid_h   = min(max(40 * n_rows + 60, 200), 600)
 
