@@ -169,21 +169,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-import streamlit.components.v1 as components
-
-components.html(
-    """
-    <script>
-      const ta = parent.document.querySelector('.stTextArea textarea');
-      if (ta) {
-        ta.style.resize = 'none';
-      }
-    </script>
-    """,
-    height=0,
-)
-
-
 # Display logo
 with open("avialdo.jpeg", "rb") as f:
     logo_data = f.read()
