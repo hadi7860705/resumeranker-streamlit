@@ -143,14 +143,19 @@ def process_resumes(uploaded_files, jd_text):
 # ------------------- Streamlit UI -------------------
 st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 
-st.markdown("""
+st.markdown(
+    """
     <style>
-    textarea {
-        resize: none !important;
-        height: 250px !important;
-    }
+        /* Target ONLY Streamlit text-areas */
+        .stTextArea textarea {
+            resize: none !important;      /* 🔒 turn off the handle   */
+            height: 250px !important;     /* 📏 constant box height   */
+            overflow-y: auto !important;  /* 🖱 still scrolls inside  */
+        }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
 # Display logo
 with open("avialdo.jpeg", "rb") as f:
