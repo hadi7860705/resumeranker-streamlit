@@ -7,7 +7,7 @@ from docx import Document
 from sentence_transformers import SentenceTransformer, util
 from keybert import KeyBERT
 from rapidfuzz import fuzz
-rom st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 warnings.filterwarnings("ignore")
 
