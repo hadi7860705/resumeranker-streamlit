@@ -7,15 +7,15 @@ from docx import Document
 from sentence_transformers import SentenceTransformer, util
 from keybert import KeyBERT
 from rapidfuzz import fuzz
+rom st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 warnings.filterwarnings("ignore")
 
-# ---------------- Model setup -----------------
 device = torch.device("cpu")
 model  = SentenceTransformer("all-mpnet-base-v2").to(device)
 kw_model = KeyBERT()  # or KeyBERT(model) to reuse same embeddings
 
-# ---------------- PDF / DOCX helpers ----------
+
 def extract_text_from_pdf(path):
     with pdfplumber.open(path) as pdf:
         return "\n".join(p.extract_text() for p in pdf.pages if p.extract_text())
@@ -28,7 +28,7 @@ def extract_email(text: str):
     m = re.search(r"\S+@\S+", text)
     return m.group(0) if m else ""
 
-# ---------------- Keyword helpers -------------
+
 def extract_keywords_from_jd(jd_text: str, top_n: int = 50):
     jd_clean = re.sub(r"\s+", " ", jd_text.strip())
     kws = kw_model.extract_keywords(
@@ -49,7 +49,7 @@ def keyword_coverage(resume_text: str, keywords):
             hit += w
     return hit / total if total else 0.0
 
-# ---------------- Scoring core ----------------
+
 def compare_to_jd(jd_text: str, resume_text: str) -> float:
     jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
@@ -62,7 +62,7 @@ def compare_to_jd(jd_text: str, resume_text: str) -> float:
     kw_ratio = keyword_coverage(resume_text, extract_keywords_from_jd(jd_text))
     return round((0.60 * sem + 0.40 * kw_ratio) * 100, 2)
 
-# ---------------- Batch runner ---------------
+
 def process_resumes(uploaded_files, jd_text):
     rows = []
     for f in uploaded_files:
