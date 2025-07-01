@@ -166,7 +166,7 @@ with open("avialdo.jpeg", "rb") as f:
     encoded = base64.b64encode(logo_data).decode()
     st.markdown(f'<p style="text-align:center;"><img src="data:image/jpeg;base64,{encoded}" width="400"/></p>', unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align:center; color:#E74C3C;'>Resume Ranker</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center; color:#000000;'>Resume Ranker</h2>", unsafe_allow_html=True)
 st.write("---")
 
 st.subheader("📌 Step 1: Provide Job Description")
@@ -193,8 +193,6 @@ elif jd_text_area.strip():
 st.subheader("📂 Step 2: Upload Resume Files (.pdf or .docx)")
 uploaded_files = st.file_uploader("Upload Resumes", type=["pdf", "docx"], accept_multiple_files=True)
 
-# ---------- Rank button & results table -----------------
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 if st.button("🚀 Rank Resumes"):
     if jd_text and uploaded_files:
