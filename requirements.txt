@@ -10,3 +10,4 @@ transformers
 scikit-learn
 keybert
 rapidfuzz==3.6.2
+st-aggrid
