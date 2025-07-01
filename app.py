@@ -149,9 +149,9 @@ st.markdown(
         /* 1️⃣ General rule */
         .stTextArea textarea {
             resize: none !important;          /* turn off user-resize */
-            height: 250px !important;         /* keep constant size   */
-            min-height: 250px !important;
-            max-height: 250px !important;
+            height: 100px !important;         /* keep constant size   */
+            min-height: 100px !important;
+            max-height: 100px !important;
             overflow-y: auto !important;      /* still scroll inside  */
         }
 
