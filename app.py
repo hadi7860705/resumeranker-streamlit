@@ -193,38 +193,42 @@ elif jd_text_area.strip():
 st.subheader("📂 Step 2: Upload Resume Files (.pdf or .docx)")
 uploaded_files = st.file_uploader("Upload Resumes", type=["pdf", "docx"], accept_multiple_files=True)
 
+# ---------- Rank button & results table -----------------
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
 if st.button("🚀 Rank Resumes"):
     if jd_text and uploaded_files:
         with st.spinner("Analyzing resumes..."):
             df = process_resumes(uploaded_files, jd_text)
-            st.success("✅ Ranking complete!")
+        st.success("✅ Ranking complete!")
 
-            gb = GridOptionsBuilder.from_dataframe(df)
+        # ---- build grid options ----
+        gb = GridOptionsBuilder.from_dataframe(df)
+        gb.configure_default_column(
+            editable=False,
+            filter=False,
+            resizable=True,    # user can widen if necessary
+            sortable=False,
+            suppressMenu=True  # removes right-click “Format / Autosize…”
+        )
+        gb.configure_grid_options(
+            suppressContextMenu=True,
+            domLayout='normal'   # normal = we control height below
+        )
+        gridOptions = gb.build()
 
-            # Default column behaviour
-            gb.configure_default_column(
-                editable=False,
-                filter=False,
-                resizable=True,          # allow user resize if they wish
-                sortable=False,
-                suppressMenu=True,
-                autoSizeColumns=True     # ⬅️  auto-size to content
-            )
+        # ---- calculate a reasonable height (40 px per row, min 200, max 600) ----
+        n_rows   = max(len(df), 1)
+        grid_h   = min(max(40 * n_rows + 60, 200), 600)
 
-            # Grid-wide options
-            gb.configure_grid_options(
-                suppressContextMenu=True  # hide right-click “Format / Autosize …”
-            )
-
-            gridOptions = gb.build()
-            gridOptions["domLayout"] = "autoHeight"  # table height = rows height
-            
-            AgGrid(
-                df,
-                gridOptions=gridOptions,
-                enable_enterprise_modules=False,
-                fit_columns_on_grid_load=True,  # fit on first render
-                height=None                     # let autoHeight take over
-            )
+        # ---- render ----
+        AgGrid(
+            df,
+            gridOptions=gridOptions,
+            theme="material",
+            height=grid_h,
+            update_mode=GridUpdateMode.NO_UPDATE,
+            enable_enterprise_modules=False
+        )
     else:
-        st.error("Please upload at least one resume and provide the job description.")
+        st.error("Please upload at least one resume **and** provide the JD.")
