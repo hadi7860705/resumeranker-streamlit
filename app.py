@@ -146,23 +146,42 @@ st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 st.markdown(
     """
     <style>
-        textarea {
-            resize: none !important;          /* Completely disable resize */
-            height: 250px !important;         /* Fixed height */
-            overflow-y: auto !important;      /* Enable vertical scroll */
-            box-sizing: border-box !important;
-        }
-
-        /* Optional: prevent accidental margin/padding changes */
+        /* 1️⃣ General rule */
         .stTextArea textarea {
+            resize: none !important;          /* turn off user-resize */
+            height: 250px !important;         /* keep constant size   */
             min-height: 250px !important;
             max-height: 250px !important;
+            overflow-y: auto !important;      /* still scroll inside  */
+        }
+
+        /* 2️⃣ Chrome / Edge / Safari: hide the bottom-right grip */
+        .stTextArea textarea::-webkit-resizer {
+            display: none !important;
+        }
+
+        /* 3️⃣ Firefox has a different shadow part */
+        .stTextArea textarea::-moz-resizer {
+            display: none !important;
         }
     </style>
     """,
     unsafe_allow_html=True
 )
 
+import streamlit.components.v1 as components
+
+components.html(
+    """
+    <script>
+      const ta = parent.document.querySelector('.stTextArea textarea');
+      if (ta) {
+        ta.style.resize = 'none';
+      }
+    </script>
+    """,
+    height=0,
+)
 
 
 # Display logo
