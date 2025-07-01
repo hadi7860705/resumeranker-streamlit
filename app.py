@@ -166,7 +166,7 @@ with open("avialdo.jpeg", "rb") as f:
     encoded = base64.b64encode(logo_data).decode()
     st.markdown(f'<p style="text-align:center;"><img src="data:image/jpeg;base64,{encoded}" width="400"/></p>', unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align:center; color:#E74C3C;'>Resume Ranker: Match Resumes to Job Description with AI</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center; color:#E74C3C;'>Resume Ranker</h2>", unsafe_allow_html=True)
 st.write("---")
 
 st.subheader("📌 Step 1: Provide Job Description")
