@@ -1,140 +1,80 @@
 import streamlit as st
 import pandas as pd
-import os
-import re
+import os, re, base64, warnings, torch
+from collections import Counter  # only if you still need it elsewhere
 import pdfplumber
 from docx import Document
 from sentence_transformers import SentenceTransformer, util
-from collections import Counter
-import base64
-import warnings
-import re
-import torch
-
-def clean_text(text):
-    return re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
+from keybert import KeyBERT
+from rapidfuzz import fuzz
 
 warnings.filterwarnings("ignore")
 
-device = torch.device("cpu")  # Fix for Streamlit + PyTorch meta tensor issue
-model = SentenceTransformer('all-mpnet-base-v2')
-model = model.to(device)
+device = torch.device("cpu")
+model  = SentenceTransformer("all-mpnet-base-v2").to(device)
+kw_model = KeyBERT()  # or KeyBERT(model) to reuse same embeddings
 
-def extract_text_from_pdf(file_path):
-    with pdfplumber.open(file_path) as pdf:
-        return "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
 
-def extract_text_from_docx(file_path):
-    doc = Document(file_path)
-    return "\n".join([para.text for para in doc.paragraphs])
+def extract_text_from_pdf(path):
+    with pdfplumber.open(path) as pdf:
+        return "\n".join(p.extract_text() for p in pdf.pages if p.extract_text())
 
-def extract_email(text):
-    match = re.search(r'\S+@\S+', text)
-    return match.group(0) if match else ""
+def extract_text_from_docx(path):
+    doc = Document(path)
+    return "\n".join(p.text for p in doc.paragraphs)
 
-def extract_required_skills(jd_text):
-    jd_text = jd_text.lower()
-    words = re.findall(r'\b[a-z]{3,}\b', jd_text)
-    common_words = set(['the', 'and', 'for', 'with', 'you', 'are', 'our', 'this', 'your', 'will',
-                        'have', 'job', 'who', 'that', 'from', 'can', 'not', 'all', 'able', 'work',
-                        'we', 'as', 'to', 'in', 'on', 'of', 'is', 'be', 'a', 'an', 'or', 'it', 'they'])
-    filtered = [word for word in words if word not in common_words]
-    most_common = Counter(filtered).most_common(10)
-    return [word for word, _ in most_common]
+def extract_email(text: str):
+    m = re.search(r"\S+@\S+", text)
+    return m.group(0) if m else ""
 
-def keyword_match_score(resume_text, required_skills):
-    resume_text = resume_text.lower()
-    match_count = sum(1 for skill in required_skills if skill in resume_text)
-    return match_count / len(required_skills) * 100 if required_skills else 0
-    
-from rapidfuzz import fuzz
-from keybert import KeyBERT
-kw_model = KeyBERT()
-TOP_N_KW = 50  
-
-def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
-    """
-    Return a list of (keyword, weight) pairs using MMR for diversity.
-    """
-    jd_text_clean = re.sub(r'\s+', ' ', jd_text.strip())
-    keywords = kw_model.extract_keywords(
-        jd_text_clean,
+def extract_keywords_from_jd(jd_text: str, top_n: int = 50):
+    jd_clean = re.sub(r"\s+", " ", jd_text.strip())
+    kws = kw_model.extract_keywords(
+        jd_clean,
         top_n=top_n,
         stop_words="english",
         use_mmr=True,
-        diversity=0.7
+        diversity=0.7,
     )
-    # lower-case keywords for case-insensitive matching
-    return [(kw.lower(), weight) for kw, weight in keywords]
-
-
-from rapidfuzz import fuzz
-from keybert import KeyBERT
-
-kw_model = KeyBERT(model)          # reuse existing SentenceTransformer
-TOP_N_KW = 50                      # pull more keywords
-
-def extract_keywords_from_jd(jd_text: str, top_n: int = TOP_N_KW):
-    """
-    Returns list of tuples (keyword, weight) sorted by KeyBERT relevance.
-    """
-    return kw_model.extract_keywords(jd_text, top_n=top_n, stop_words="english")
+    return [(kw.lower(), w) for kw, w in kws]
 
 def keyword_coverage(resume_text: str, keywords):
-    """
-    Return ratio [0‒1] of JD keywords found in resume_text.
-    Uses exact OR fuzzy partial match (RapidFuzz ≥85).
-    Weights each keyword by KeyBERT weight.
-    """
     text = resume_text.lower()
-    matched_weight = 0.0
-    total_weight   = 0.0
+    hit, total = 0.0, 0.0
     for kw, w in keywords:
-        total_weight += w
+        total += w
         if kw in text or fuzz.partial_ratio(kw, text) >= 85:
-            matched_weight += w
-    return matched_weight / total_weight if total_weight else 0.0
-    
+            hit += w
+    return hit / total if total else 0.0
+
+
 def compare_to_jd(jd_text: str, resume_text: str) -> float:
-    # ----- semantic similarity -----
     jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
     res_emb = model.encode(resume_text, convert_to_tensor=True)
-    raw_cos = util.pytorch_cos_sim(jd_emb, res_emb).item()
+    cos     = util.pytorch_cos_sim(jd_emb, res_emb).item()
 
-    # Normalise to [0,1] (shift & scale typical SBERT cosine range 0.25–0.75)
-    sem = max(0.0, min((raw_cos - 0.25) / 0.5, 1.0))
-
-    # Gentle boost for VERY high semantic (>0.80) so the best still pop
+    sem = max(0, min((cos - 0.25) / 0.5, 1))
     if sem > 0.80:
-        sem = min(1.0, sem ** 1.25 + 0.05)
+        sem = min(1, sem ** 1.25 + 0.05)
 
-    jd_keywords = extract_keywords_from_jd(jd_text)
-    kw_ratio    = keyword_coverage(resume_text, jd_keywords)          
+    kw_ratio = keyword_coverage(resume_text, extract_keywords_from_jd(jd_text))
+    return round((0.60 * sem + 0.40 * kw_ratio) * 100, 2)
 
-    final = (0.60 * sem + 0.40 * kw_ratio) * 100                     
-    return round(final, 2)
-    
 def process_resumes(uploaded_files, jd_text):
-    results = []
-    for file in uploaded_files:
-        filename = file.name
-        file_path = f"/tmp/{filename}"
-        with open(file_path, "wb") as f:
-            f.write(file.read())
-        if filename.endswith(".pdf"):
-            text = extract_text_from_pdf(file_path)
-        elif filename.endswith(".docx"):
-            text = extract_text_from_docx(file_path)
-        else:
-            continue
-        score = compare_to_jd(jd_text, text)
-        email = extract_email(text)
-        results.append({"File Name": filename, "Email": email, "Score (%)": score})
-    df = pd.DataFrame(results)
-    df = df.sort_values(by="Score (%)", ascending=False)
-    return df
+    rows = []
+    for f in uploaded_files:
+        tmp = f"/tmp/{f.name}"
+        with open(tmp, "wb") as out: out.write(f.read())
+        text = extract_text_from_pdf(tmp) if f.name.endswith(".pdf") else extract_text_from_docx(tmp)
+        rows.append(
+            {
+                "File Name": f.name,
+                "Email": extract_email(text),
+                "Score (%)": compare_to_jd(jd_text, text),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("Score (%)", ascending=False)
 
-# ------------------- Streamlit UI -------------------
 st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 from st_aggrid import AgGrid, GridOptionsBuilder
 
