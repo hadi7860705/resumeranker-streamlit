@@ -142,6 +142,7 @@ def process_resumes(uploaded_files, jd_text):
 
 # ------------------- Streamlit UI -------------------
 st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 st.markdown(
     """
@@ -210,7 +211,18 @@ if st.button("🚀 Rank Resumes"):
         with st.spinner("Analyzing resumes..."):
             df = process_resumes(uploaded_files, jd_text)
             st.success("✅ Ranking complete!")
-            st.dataframe(df, use_container_width=True)
+            gb = GridOptionsBuilder.from_dataframe(df)
+            gb.configure_default_column(
+                editable=False,
+                filter=False,
+                resizable=False,
+                sortable=False,
+                suppressMenu=True
+            )
+            gb.configure_grid_options(suppressContextMenu=True)
+            gridOptions = gb.build()
+
+            AgGrid(df, gridOptions=gridOptions, enable_enterprise_modules=False)    
     else:
         st.error("Please upload at least one resume and provide the job description.")
 
