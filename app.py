@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os, re, base64, warnings, torch
-from collections import Counter  # only if you still need it elsewhere
+from collections import Counter 
 import pdfplumber
 from docx import Document
 from sentence_transformers import SentenceTransformer, util
@@ -83,16 +83,15 @@ st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 st.markdown(
     """
     <style>
-        /* 1️⃣ General rule */
+       
         .stTextArea textarea {
-            resize: none !important;          /* turn off user-resize */
-            height: 75px !important;         /* keep constant size   */
+            resize: none !important;          
+            height: 75px !important;         
             min-height: 75px !important;
             max-height: 75px !important;
-            overflow-y: auto !important;      /* still scroll inside  */
+            overflow-y: auto !important;     
         }
 
-        /* 2️⃣ Chrome / Edge / Safari: hide the bottom-right grip */
         .stTextArea textarea::-webkit-resizer {
             display: none !important;
         }
