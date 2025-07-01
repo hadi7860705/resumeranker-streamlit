@@ -158,7 +158,7 @@ jd_col1, jd_col2 = st.columns(2)
 
 jd_text = ""
 with jd_col1:
-    jd_text_area = st.text_area("Paste JD here (optional if uploading)")
+    jd_text_area = st.text_area("Paste JD here (optional if uploading)", height=250)
 with jd_col2:
     jd_file = st.file_uploader("Or upload JD (.txt or .docx)", type=["txt", "docx"])
 
