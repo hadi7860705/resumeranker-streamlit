@@ -9,7 +9,6 @@ from collections import Counter
 import base64
 import warnings
 import re
-
 import torch
 
 def clean_text(text):
@@ -21,7 +20,6 @@ device = torch.device("cpu")  # Fix for Streamlit + PyTorch meta tensor issue
 model = SentenceTransformer('all-mpnet-base-v2')
 model = model.to(device)
 
-# ------------------- Utility Functions -------------------
 def extract_text_from_pdf(file_path):
     with pdfplumber.open(file_path) as pdf:
         return "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
@@ -70,7 +68,6 @@ def extract_keywords_from_jd(jd_text: str, top_n: int = 30):
     return [(kw.lower(), weight) for kw, weight in keywords]
 
 
-# ---------------- Keyword helpers -----------------
 from rapidfuzz import fuzz
 from keybert import KeyBERT
 
@@ -98,7 +95,6 @@ def keyword_coverage(resume_text: str, keywords):
             matched_weight += w
     return matched_weight / total_weight if total_weight else 0.0
     
-# --------------- Scoring function -----------------
 def compare_to_jd(jd_text: str, resume_text: str) -> float:
     # ----- semantic similarity -----
     jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
@@ -112,12 +108,10 @@ def compare_to_jd(jd_text: str, resume_text: str) -> float:
     if sem > 0.80:
         sem = min(1.0, sem ** 1.25 + 0.05)
 
-    # ----- keyword coverage -----
     jd_keywords = extract_keywords_from_jd(jd_text)
-    kw_ratio    = keyword_coverage(resume_text, jd_keywords)          # 0‒1
+    kw_ratio    = keyword_coverage(resume_text, jd_keywords)          
 
-    # ----- final blend (60 % semantic, 40 % keyword) -----
-    final = (0.60 * sem + 0.40 * kw_ratio) * 100                     # -> 0‒100
+    final = (0.60 * sem + 0.40 * kw_ratio) * 100                     
     return round(final, 2)
     
 def process_resumes(uploaded_files, jd_text):
@@ -161,16 +155,12 @@ st.markdown(
             display: none !important;
         }
 
-        /* 3️⃣ Firefox has a different shadow part */
-        .stTextArea textarea::-moz-resizer {
-            display: none !important;
-        }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# Display logo
+
 with open("avialdo.jpeg", "rb") as f:
     logo_data = f.read()
     encoded = base64.b64encode(logo_data).decode()
@@ -179,7 +169,6 @@ with open("avialdo.jpeg", "rb") as f:
 st.markdown("<h2 style='text-align:center; color:#E74C3C;'>Resume Ranker: Match Resumes to Job Description with AI</h2>", unsafe_allow_html=True)
 st.write("---")
 
-# Step 1: JD Input
 st.subheader("📌 Step 1: Provide Job Description")
 jd_col1, jd_col2 = st.columns(2)
 
@@ -201,29 +190,41 @@ if jd_file:
 elif jd_text_area.strip():
     jd_text = jd_text_area.strip()
 
-# Step 2: Resume Upload
 st.subheader("📂 Step 2: Upload Resume Files (.pdf or .docx)")
 uploaded_files = st.file_uploader("Upload Resumes", type=["pdf", "docx"], accept_multiple_files=True)
 
-# Button
 if st.button("🚀 Rank Resumes"):
     if jd_text and uploaded_files:
         with st.spinner("Analyzing resumes..."):
             df = process_resumes(uploaded_files, jd_text)
             st.success("✅ Ranking complete!")
+
             gb = GridOptionsBuilder.from_dataframe(df)
+
+            # Default column behaviour
             gb.configure_default_column(
                 editable=False,
                 filter=False,
-                resizable=False,
+                resizable=True,          # allow user resize if they wish
                 sortable=False,
-                suppressMenu=True
+                suppressMenu=True,
+                autoSizeColumns=True     # ⬅️  auto-size to content
             )
-            gb.configure_grid_options(suppressContextMenu=True)
-            gridOptions = gb.build()
 
-            AgGrid(df, gridOptions=gridOptions, enable_enterprise_modules=False)    
+            # Grid-wide options
+            gb.configure_grid_options(
+                suppressContextMenu=True  # hide right-click “Format / Autosize …”
+            )
+
+            gridOptions = gb.build()
+            gridOptions["domLayout"] = "autoHeight"  # table height = rows height
+            
+            AgGrid(
+                df,
+                gridOptions=gridOptions,
+                enable_enterprise_modules=False,
+                fit_columns_on_grid_load=True,  # fit on first render
+                height=None                     # let autoHeight take over
+            )
     else:
         st.error("Please upload at least one resume and provide the job description.")
-
-
