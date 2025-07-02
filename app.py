@@ -77,187 +77,99 @@ def process_resumes(uploaded_files, jd_text):
             }
         )
     return pd.DataFrame(rows).sort_values("Score (%)", ascending=False)
-st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 
 
+st.set_page_config(
+    page_title="Resume Ranker",
+    page_icon="🔥",
+    layout="centered",
+)
+
+# ---------- global CSS ----------
 st.markdown(
     """
     <style>
-       
-        .stTextArea textarea {
-            resize: none !important;          
-            height: 75px !important;         
-            min-height: 75px !important;
-            max-height: 75px !important;
-            overflow-y: auto !important;     
-        }
+        /* soft mint background */
+        body {background: radial-gradient(circle at 50% 0%, #e8f4f1 0%, #f6fdfc 60%);}
 
-        .stTextArea textarea::-webkit-resizer {
-            display: none !important;
-        }
+        /* card-like main block */
+        .main .block-container {background: #ffffff; padding: 2.5rem 4rem; border-radius: 12px;
+                                 box-shadow: 0 4px 18px rgba(0,0,0,.05);}
 
+        /* headings + fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        html,body,div,span {font-family: 'Inter', sans-serif;}
+
+        h1 {font-weight: 700; margin-bottom: .25rem;}
+        h2 {font-weight: 600; margin-top: 1.6rem;}
+
+        /* text-area keeps fixed height, no resize grip */
+        textarea {resize: none !important; height: 120px !important;}
+
+        /* nice primary button */
+        .stButton>button {
+            background:#116149; color:#fff; font-weight:600; border-radius:8px;
+            padding:.6rem 2.2rem; border:none; transition: background .2s ease;
+        }
+        .stButton>button:hover {background:#0e523d;}
+
+        /* drop-zone tweak */
+        .stFileUploader>div>div {border:2px dashed #B6CBC3;}
+        .stFileUploader span {color:#666; font-weight:500;}
+
+        /* AgGrid – hide menu / resize handles */
+        .ag-header-cell-menu-button, .ag-header-cell-resize {display:none;}
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
+# ---------- title bar ----------
+col1, col2 = st.columns([1, 0.07])
+with col1:
+    st.markdown("<h1>Resume Ranker </h1>", unsafe_allow_html=True)
+with col2:
+    st.markdown("<h1 style='font-size:2.2rem; line-height:1.1;'>🔍</h1>", unsafe_allow_html=True)
 
-with open("avialdo.jpeg", "rb") as f:
-    logo_data = f.read()
-    encoded = base64.b64encode(logo_data).decode()
-    st.markdown(f'<p style="text-align:center;"><img src="data:image/jpeg;base64,{encoded}" width="400"/></p>', unsafe_allow_html=True)
+# ---------- tabs ----------
+tab_upload, tab_results = st.tabs(["📥 Upload & JD", "📊 Results"])
 
-st.markdown("<h2 style='text-align:center; color:#000000;'>Resume Ranker</h2>", unsafe_allow_html=True)
-st.write("---")
+# --------------------------- Tab 1  (Upload) ------------------------------ #
+with tab_upload:
+    st.subheader("Step 1: Upload Resumes")
+    resumes = st.file_uploader(
+        "Upload multiple PDF/DOCX resumes",
+        type=["pdf", "docx"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+    )
 
-st.subheader("📌 Step 1: Provide Job Description")
-jd_col1, jd_col2 = st.columns(2)
+    st.subheader("Step 2: Paste Job Description")
+    jd_text = st.text_area("e.g. We are hiring a backend Python developer with experience in …")
 
-jd_text = ""
-with jd_col1:
-    jd_text_area = st.text_area("Paste JD here", height=250)
-with jd_col2:
-    jd_file = st.file_uploader("Upload JD (.txt or .docx)", type=["txt", "docx"])
-
-if jd_file:
-    file_path = f"/tmp/{jd_file.name}"
-    with open(file_path, "wb") as f:
-        f.write(jd_file.read())
-    if jd_file.name.endswith(".txt"):
-        with open(file_path, "r", encoding="utf-8") as f:
-            jd_text = f.read()
-    elif jd_file.name.endswith(".docx"):
-        jd_text = extract_text_from_docx(file_path)
-elif jd_text_area.strip():
-    jd_text = jd_text_area.strip()
-
-st.subheader("📂 Step 2: Upload Resume Files (.pdf or .docx)")
-uploaded_files = st.file_uploader("Upload Resumes", type=["pdf", "docx"], accept_multiple_files=True)
-
-
-if st.button("🚀 Rank Resumes"):
-    if jd_text and uploaded_files:
-        with st.spinner("Analyzing resumes..."):
-            df = process_resumes(uploaded_files, jd_text)
+    run = st.button("🚀  Rank Resumes")
+    if run and resumes and jd_text.strip():
+        with st.spinner("Scoring…"):
+            df = process_resumes(resumes, jd_text)
+        st.session_state["rank_df"] = df
         st.success("✅ Ranking complete!")
+        st.switch_page("/")          # instantly jump to “Results” tab below
 
-        gb = GridOptionsBuilder.from_dataframe(df)
-        gb.configure_default_column(
-            editable=False,
-            filter=False,
-            resizable=True,    # user can widen if necessary
-            sortable=False,
-            suppressMenu=True  # removes right-click “Format / Autosize…”
-        )
-        gb.configure_grid_options(
-            suppressContextMenu=True,
-            domLayout='normal'   # normal = we control height below
-        )
-        gridOptions = gb.build()
-
-        n_rows   = max(len(df), 1)
-        grid_h   = min(max(40 * n_rows + 60, 200), 600)
-
-        # ---- render ----
-        AgGrid(
-            df,
-            gridOptions=gridOptions,
-            theme="material",
-            height=grid_h,
-            update_mode=GridUpdateMode.NO_UPDATE,
-            enable_enterprise_modules=False
-        )
+# --------------------------- Tab 2  (Results) ----------------------------- #
+with tab_results:
+    if "rank_df" not in st.session_state:
+        st.info("Upload resumes & a JD on the first tab, then click **Rank Resumes**.")
     else:
-        st.error("Please upload at least one resume **and** provide the JD.")
-    
-st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
+        st.subheader("Top Matching Resumes")
+        df = st.session_state["rank_df"]
 
-st.markdown(
-    """
-    <style>
-       
-        .stTextArea textarea {
-            resize: none !important;          
-            height: 75px !important;         
-            min-height: 75px !important;
-            max-height: 75px !important;
-            overflow-y: auto !important;     
-        }
-
-        .stTextArea textarea::-webkit-resizer {
-            display: none !important;
-        }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-with open("avialdo.jpeg", "rb") as f:
-    logo_data = f.read()
-    encoded = base64.b64encode(logo_data).decode()
-    st.markdown(f'<p style="text-align:center;"><img src="data:image/jpeg;base64,{encoded}" width="400"/></p>', unsafe_allow_html=True)
-
-st.markdown("<h2 style='text-align:center; color:#000000;'>Resume Ranker</h2>", unsafe_allow_html=True)
-st.write("---")
-
-st.subheader("📌 Step 1: Provide Job Description")
-jd_col1, jd_col2 = st.columns(2)
-
-jd_text = ""
-with jd_col1:
-    jd_text_area = st.text_area("Paste JD here", height=250)
-with jd_col2:
-    jd_file = st.file_uploader("Upload JD (.txt or .docx)", type=["txt", "docx"])
-
-if jd_file:
-    file_path = f"/tmp/{jd_file.name}"
-    with open(file_path, "wb") as f:
-        f.write(jd_file.read())
-    if jd_file.name.endswith(".txt"):
-        with open(file_path, "r", encoding="utf-8") as f:
-            jd_text = f.read()
-    elif jd_file.name.endswith(".docx"):
-        jd_text = extract_text_from_docx(file_path)
-elif jd_text_area.strip():
-    jd_text = jd_text_area.strip()
-
-st.subheader("📂 Step 2: Upload Resume Files (.pdf or .docx)")
-uploaded_files = st.file_uploader("Upload Resumes", type=["pdf", "docx"], accept_multiple_files=True)
-
-
-if st.button("🚀 Rank Resumes"):
-    if jd_text and uploaded_files:
-        with st.spinner("Analyzing resumes..."):
-            df = process_resumes(uploaded_files, jd_text)
-        st.success("✅ Ranking complete!")
-
+        # ---- AgGrid (prettier than st.dataframe) ----
         gb = GridOptionsBuilder.from_dataframe(df)
-        gb.configure_default_column(
-            editable=False,
-            filter=False,
-            resizable=True,    # user can widen if necessary
-            sortable=False,
-            suppressMenu=True  # removes right-click “Format / Autosize…”
-        )
-        gb.configure_grid_options(
-            suppressContextMenu=True,
-            domLayout='normal'   # normal = we control height below
-        )
-        gridOptions = gb.build()
+        gb.configure_default_column(editable=False, filter=False, resizable=False,
+                                    sortable=False, suppressMenu=True)
+        gb.configure_grid_options(domLayout='normal')
+        grid_options = gb.build()
+        AgGrid(df, gridOptions=grid_options, height=360, fit_columns_on_grid_load=True)
 
-        n_rows   = max(len(df), 1)
-        grid_h   = min(max(40 * n_rows + 60, 200), 600)
-
-        # ---- render ----
-        AgGrid(
-            df,
-            gridOptions=gridOptions,
-            theme="material",
-            height=grid_h,
-            update_mode=GridUpdateMode.NO_UPDATE,
-            enable_enterprise_modules=False
-        )
-    else:
-        st.error("Please upload at least one resume **and** provide the JD.")
+        # If you prefer vanilla Streamlit table:
+        # st.dataframe(df, hide_index=True, use_container_width=True)
