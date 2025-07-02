@@ -2,6 +2,7 @@ streamlit
 pandas
 pdfplumber
 python-docx
+sentence-transformers
 torch==2.6.0    
 keybert
 rapidfuzz==3.6.2
