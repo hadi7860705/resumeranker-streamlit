@@ -1,9 +1,8 @@
 streamlit
 pandas
 pdfplumber
-python
-torch==2.6.0
-transformers        
+python-docx
+torch==2.6.0    
 keybert
 rapidfuzz==3.6.2
 streamlit-aggrid
