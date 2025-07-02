@@ -2,12 +2,9 @@ streamlit
 pandas
 pdfplumber
 python-docx
-sentence-transformers
-openpyxl
-Pillow
 torch==2.6.0
 transformers
-scikit-learn
+sentencepiece          
 keybert
 rapidfuzz==3.6.2
 streamlit-aggrid
