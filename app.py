@@ -1,21 +1,73 @@
 import streamlit as st
 import pandas as pd
-import os, re, base64, warnings, torch
-from collections import Counter 
+import base64, os, re, warnings, torch
+
 import pdfplumber
 from docx import Document
-from sentence_transformers import SentenceTransformer, util
+
+from transformers import AutoTokenizer, AutoModel
+from sentence_transformers import util          # we still reuse its cosine helper
 from keybert import KeyBERT
 from rapidfuzz import fuzz
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 warnings.filterwarnings("ignore")
+st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
 
-device = torch.device("cpu")
-model  = SentenceTransformer("all-mpnet-base-v2").to(device)
-kw_model = KeyBERT()  # or KeyBERT(model) to reuse same embeddings
+# ── 1️⃣  Load Sentence-T5 once and cache  ───────────────────────────────
+@st.cache_resource(show_spinner="Loading Sentence-T5 …")
+def load_t5():
+    tok = AutoTokenizer.from_pretrained("sentence-transformers/sentence-t5-base")
+    mdl = AutoModel.from_pretrained("sentence-transformers/sentence-t5-base")
+    mdl.to(torch.device("cpu"))
+    return tok, mdl
 
+tokenizer, t5_model = load_t5()
 
+def encode_t5(text: str):
+    """Return a 768-dim averaged & L2-normalised embedding for a sentence."""
+    inp = tokenizer(text, return_tensors="pt", truncation=True)
+    with torch.no_grad():
+        h = t5_model.encoder(**inp).last_hidden_state      # (1, seq, 768)
+        emb = h.mean(dim=1)
+        emb = torch.nn.functional.normalize(emb, p=2, dim=1)
+    return emb
+
+# ── 2️⃣  Keyword utilities (KeyBERT + fuzzy)  ───────────────────────────
+kw_model = KeyBERT()                # uses MiniLM internally
+
+def extract_keywords_from_jd(jd_text: str, top_n: int = 50):
+    cleaned = re.sub(r"\s+", " ", jd_text.strip())
+    kws = kw_model.extract_keywords(
+        cleaned, top_n=top_n, stop_words="english",
+        use_mmr=True, diversity=0.7
+    )
+    return [(kw.lower(), w) for kw, w in kws]
+
+def keyword_coverage(resume_text: str, keywords):
+    text   = resume_text.lower()
+    hit, total = 0.0, 0.0
+    for kw, w in keywords:
+        total += w
+        if kw in text or fuzz.partial_ratio(kw, text) >= 85:
+            hit += w
+    return hit / total if total else 0.0
+
+# ── 3️⃣  Scoring  ───────────────────────────────────────────────────────
+def compare_to_jd(jd_text: str, resume_text: str) -> float:
+    jd_emb  = encode_t5(jd_text)
+    res_emb = encode_t5(resume_text)
+    cos     = torch.cosine_similarity(jd_emb, res_emb).item()
+
+    # normalise cosine 0.25-0.75 → 0-1
+    sem = max(0, min((cos - 0.25) / 0.5, 1))
+    if sem > .80:
+        sem = min(1, sem ** 1.25 + .05)
+
+    kw_ratio = keyword_coverage(resume_text, extract_keywords_from_jd(jd_text))
+    return round((0.60 * sem + 0.40 * kw_ratio) * 100, 2)
+
+# ── 4️⃣  File helpers  ──────────────────────────────────────────────────
 def extract_text_from_pdf(path):
     with pdfplumber.open(path) as pdf:
         return "\n".join(p.extract_text() for p in pdf.pages if p.extract_text())
@@ -24,61 +76,25 @@ def extract_text_from_docx(path):
     doc = Document(path)
     return "\n".join(p.text for p in doc.paragraphs)
 
-def extract_email(text: str):
+def extract_email(text):
     m = re.search(r"\S+@\S+", text)
     return m.group(0) if m else ""
 
-
-def extract_keywords_from_jd(jd_text: str, top_n: int = 50):
-    jd_clean = re.sub(r"\s+", " ", jd_text.strip())
-    kws = kw_model.extract_keywords(
-        jd_clean,
-        top_n=top_n,
-        stop_words="english",
-        use_mmr=True,
-        diversity=0.7,
-    )
-    return [(kw.lower(), w) for kw, w in kws]
-
-def keyword_coverage(resume_text: str, keywords):
-    text = resume_text.lower()
-    hit, total = 0.0, 0.0
-    for kw, w in keywords:
-        total += w
-        if kw in text or fuzz.partial_ratio(kw, text) >= 85:
-            hit += w
-    return hit / total if total else 0.0
-
-
-def compare_to_jd(jd_text: str, resume_text: str) -> float:
-    jd_emb  = model.encode(jd_text,     convert_to_tensor=True)
-    res_emb = model.encode(resume_text, convert_to_tensor=True)
-    cos     = util.pytorch_cos_sim(jd_emb, res_emb).item()
-
-    sem = max(0, min((cos - 0.25) / 0.5, 1))
-    if sem > 0.80:
-        sem = min(1, sem ** 1.25 + 0.05)
-
-    kw_ratio = keyword_coverage(resume_text, extract_keywords_from_jd(jd_text))
-    return round((0.60 * sem + 0.40 * kw_ratio) * 100, 2)
-
-
-def process_resumes(uploaded_files, jd_text):
+def process_resumes(files, jd_text):
     rows = []
-    for f in uploaded_files:
+    for f in files:
         tmp = f"/tmp/{f.name}"
-        with open(tmp, "wb") as out: out.write(f.read())
-        text = extract_text_from_pdf(tmp) if f.name.endswith(".pdf") else extract_text_from_docx(tmp)
+        with open(tmp, "wb") as out:
+            out.write(f.read())
+        text = extract_text_from_pdf(tmp) if f.name.lower().endswith(".pdf") else extract_text_from_docx(tmp)
         rows.append(
-            {
-                "File Name": f.name,
-                "Email": extract_email(text),
-                "Score (%)": compare_to_jd(jd_text, text),
-            }
+            {"File Name": f.name,
+             "Email": extract_email(text),
+             "Score (%)": compare_to_jd(jd_text, text)}
         )
     return pd.DataFrame(rows).sort_values("Score (%)", ascending=False)
+    
 st.set_page_config(page_title="Resume Ranker", page_icon="🔥", layout="wide")
-
 
 st.markdown(
     """
