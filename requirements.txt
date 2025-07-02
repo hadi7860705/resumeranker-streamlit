@@ -1,10 +1,9 @@
 streamlit
 pandas
 pdfplumber
-python-docx
+python
 torch==2.6.0
-transformers
-sentencepiece          
+transformers        
 keybert
 rapidfuzz==3.6.2
 streamlit-aggrid
